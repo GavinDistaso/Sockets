@@ -1,12 +1,9 @@
 # Sockets
 Simple, easy to use, C/C++ single file socket wrapper with support on windows and linux for FTP, SSL, and UDP. 
 
-![](https://img.shields.io/badge/Builds-all%20passing-success)
 ![](https://img.shields.io/badge/Windows-passing-success)
 ![](https://img.shields.io/badge/Linux-passing-success)
-
-![](https://img.shields.io/badge/Version-1.0-lightgray)
-![](https://img.shields.io/badge/Latest-true-green)
+![](https://img.shields.io/badge/Version-1.1-lightgray)
 
 
 # Examples
@@ -24,7 +21,7 @@ int main(){
   if((e=initSock(sock)) != no_err) throwError(e);
   
   // errCode connectSock(const char* hostname, int port, bool attemptSSL, SOCKET_t sock)
-  if((e=connectSock("www.google.com", 443, 1, sock)) != no_err) throwError(e);
+  if((e=connectSock("www.google.com", 443, true, sock)) != no_err) throwError(e);
 
   // void sendBytes(const char* bytes, int len, SOCKET_t sock)
   sendBytes("GET / HTTP/1.1\n\n", 17, sock);
@@ -68,9 +65,9 @@ int main(){
 }
 ```
 
-### FTP server comming soon?
+### FTP server docs coming soon?
 
-# How to dissable ssl
+# How to disable ssl
 if you dont even want ssl to be attempted or dont want to link openssl you can do the following __before__ you include the header
 ```c
 #define __NO_SSL__ // this removes the need for openssl to even be linked with the project, although ssl wont be even attempted

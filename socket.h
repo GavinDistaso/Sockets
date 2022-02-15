@@ -9,29 +9,38 @@
 * This is a `botching` tool, not meant to be perfect or super efficent, only easy
 */
 
-#ifndef __SOCKET_H__
-#define __SOCKET_H__
+#ifndef INCLUDED_SOCKET_H
+#define INCLUDED_SOCKET_H
+
+#define WINDOWS defined(_WIN32)
+
+#define GNUcompiler defined(__GNUC__) || defined(__GNUG__)
+#define MSCcompiler defined(_MSC_VER)
 
 #ifdef __cplusplus
     extern "C" {
 #endif
 
-#if __WIN32
+#if WINDOWS
     #include <winsock2.h>
-    #pragma comment(lib,"ws2_32.lib")
 #else
     #include <sys/socket.h>
     #include <netdb.h>
 #endif
 
-#ifdef __NO_SSL__
-    #define __USE_SSL__ 0
-#else
-    #define __USE_SSL__ 1
+#define __USE_SSL__ (!defined(__NO_SSL__))
+
+#if __USE_SSL__
     #include <openssl/err.h>
     #include <openssl/ssl.h>
+#endif
+
+#if MSCcompiler
+    #pragma comment(lib,"ws2_32")
+    #if __USE_SSL__
     #pragma comment(lib, "crypto");
     #pragma comment(lib, "ssl");
+    #endif
 #endif
 
 #include <unistd.h>
@@ -41,25 +50,19 @@
 #include <stdbool.h>
 
 #if __USE_SSL__
-#warning bind doesnt support ssl (yet) 
-#warning listen doesnt support ssl (yet) 
-
-#if __WIN32
-#warning ssl is untested for windows
-#endif
-
-#endif
+    #warning bind doesnt support ssl (yet) 
+    #warning listen doesnt support ssl (yet) 
+#endif // __USE_SSL__
 
 // internal function
-void _error(){
+// throws the error from the socket implementation
+void throwSocketError(){
     fprintf(stderr, "Thrown error: ");
     fflush(stderr);
 
     #if __USE_SSL__
         ERR_print_errors_fp(stderr);
-    #endif
-
-    #if __WIN32
+    #elif WINDOWS
         fprintf(stderr, "%d (WSA ERROR CODE)",WSAGetLastError());
     #endif
 
@@ -133,7 +136,7 @@ SOCKET_t createSock(){
 
 /* sock initiator (ftp/ssl) */
 errCode initSock(SOCKET_t sock){
-    #if __WIN32
+    #if WINDOWS
         WSADATA wsa;
         if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
             return cant_init_winsock;
@@ -146,12 +149,12 @@ errCode initSock(SOCKET_t sock){
     sock->sslViable = 1;
 
     #if __USE_SSL__
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
-    SSL_library_init();
-    sock->method = TLS_client_method();
-    if((sock->ctx = SSL_CTX_new(sock->method) ) == NULL)
-        return cant_create_sock | err_ssl;
+        OpenSSL_add_all_algorithms();
+        SSL_load_error_strings();
+        SSL_library_init();
+        sock->method = TLS_client_method();
+        if((sock->ctx = SSL_CTX_new(sock->method) ) == NULL)
+            return cant_create_sock | err_ssl;
     #endif
 
     return no_err;
@@ -159,7 +162,7 @@ errCode initSock(SOCKET_t sock){
 
 /* sock initiator (udp) */
 errCode initSockUDP(SOCKET_t sock){
-     #if __WIN32
+    #if WINDOWS
         WSADATA wsa;
         if (WSAStartup(MAKEWORD(2,2),&wsa) != 0)
             return cant_init_winsock;
@@ -203,15 +206,15 @@ errCode connectSock(const char* hostname, int port, bool attemptSSL, SOCKET_t so
 
     if(attemptSSL){
         #if __USE_SSL__
-        // create SSL and connect to socket
-        sock->ssl = SSL_new(sock->ctx);
-        SSL_set_fd(sock->ssl, sock->socketfd);
-        SSL_set_tlsext_host_name(sock->ssl, hostname);
-        if(SSL_connect(sock->ssl) == -1){
-            sock->sslViable = 0;
-        }
+            // create SSL and connect to socket
+            sock->ssl = SSL_new(sock->ctx);
+            SSL_set_fd(sock->ssl, sock->socketfd);
+            SSL_set_tlsext_host_name(sock->ssl, hostname);
+            if(SSL_connect(sock->ssl) == -1){
+                sock->sslViable = 0;
+            }
         #else
-        sock->sslViable = 0;
+            sock->sslViable = 0;
         #endif
     }else
         sock->sslViable = 0;
@@ -223,10 +226,10 @@ errCode connectSock(const char* hostname, int port, bool attemptSSL, SOCKET_t so
 
 void sendBytes(const char* bytes, int len, SOCKET_t sock) {
     #if __USE_SSL__
-    if(sock->sslViable) SSL_write(sock->ssl, bytes, len);
-    else send(sock->socketfd, bytes, len, 0);
+        if(sock->sslViable) SSL_write(sock->ssl, bytes, len);
+        else send(sock->socketfd, bytes, len, 0);
     #else
-    send(sock->socketfd, (char*)bytes, len, 0);
+        send(sock->socketfd, (char*)bytes, len, 0);
     #endif
 }
 
@@ -266,8 +269,7 @@ errCode bindSock(const char* hostname, int port, SOCKET_t sock){
     return no_err;
 }
 
-/* listen */
-/*
+/* listen
 * onConn: a function that is ran on each connection to the binded sock
 * maxConn: maximum ammount of connections
 * arg: a argument that is passed to the `onConn` func when a connection is made
@@ -289,14 +291,13 @@ errCode listenSock(void (*onConn)(SOCKET_t conn, void* arg), int maxConn, SOCKET
     return no_err; // never reached
 }
 
-/* recv */
-/*
+/* recv
 * buf: preinitialized array 
 * bufSize: length of the `buf` array
 * delay: how long in milliseconds to wait for a message (0 is infinite)
 */
 int recvBytes(char buf[], int bufSize, int delay, SOCKET_t sock){
-    #if __WIN32
+    #if WINDOWS
     setsockopt(sock->socketfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&delay, sizeof(delay));
     #else
     struct timeval tv = {(long)(delay / 1000), (long)((delay % 1000) * 1000)};
@@ -315,7 +316,7 @@ int recvBytes(char buf[], int bufSize, int delay, SOCKET_t sock){
 
 /* clean & close */
 void closeSock(SOCKET_t sock){
-    #if __WIN32
+    #if WINDOWS
     closesocket(sock->socketfd);
     #else
     close(sock->socketfd)
@@ -328,4 +329,4 @@ void closeSock(SOCKET_t sock){
     }
 #endif
 
-#endif
+#endif // INCLUDED_SOCKET_H
