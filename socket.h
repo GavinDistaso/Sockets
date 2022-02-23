@@ -128,6 +128,8 @@ typedef struct SOCKET_t{
     bool sslViable;
 } *SOCKET_t;
 
+void closeSock(SOCKET_t sock);
+
 /* sock contructor */
 SOCKET_t createSock(){
     SOCKET_t sock = malloc(sizeof(struct SOCKET_t));
@@ -146,15 +148,17 @@ errCode initSock(SOCKET_t sock){
     if(sock->socketfd == 0)
         return cant_create_sock | err_ftp;
 
-    sock->sslViable = 1;
-
+    
     #if __USE_SSL__
+        sock->sslViable = 1;
         OpenSSL_add_all_algorithms();
         SSL_load_error_strings();
         SSL_library_init();
         sock->method = TLS_client_method();
         if((sock->ctx = SSL_CTX_new(sock->method) ) == NULL)
             return cant_create_sock | err_ssl;
+    #else
+        sock->sslViable = 0;
     #endif
 
     return no_err;
@@ -279,14 +283,17 @@ errCode listenSock(void (*onConn)(SOCKET_t conn, void* arg), int maxConn, SOCKET
         if(listen(sock->socketfd, maxConn) < 0)
             return cant_listen_sock;
         
-        int conn = accept(sock->socketfd, NULL, NULL);
-
         SOCKET_t c = createSock();
         initSock(c);
+        c->sslViable = 0;
+
+        int conn = accept(sock->socketfd, NULL, NULL);
 
         c->socketfd = conn;
 
         onConn(c, arg);
+
+        closeSock(c);
     }
     return no_err; // never reached
 }
