@@ -3,7 +3,7 @@ Simple, easy to use, C/C++ single file socket wrapper with support on windows an
 
 ![](https://img.shields.io/badge/Windows-passing-success)
 ![](https://img.shields.io/badge/Linux-passing-success)
-![](https://img.shields.io/badge/Version-1.1-lightgray)
+![](https://img.shields.io/badge/Version-1.2-lightgray)
 
 
 # Examples
@@ -50,12 +50,14 @@ void onConn(SOCKET_t conn, void* arg){
     // int recvBytes(char buf[], int bufSize, int delay, SOCKET_t sock)
     int len = recvBytes(data, 1024, 0, conn);
     puts(data);
+
+    sendBytes("HTTP/1.1 200 OK\n\nhi", 19, conn);
 }
 
 int main(){
     SOCKET_t sock = createSock();
     errCode e;
-    
+
     // errCode initSock(SOKCET_t sock)
     if((e=initSock(sock)) != no_err) throwError(e);
 
